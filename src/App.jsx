@@ -453,6 +453,7 @@ const Icon = ({ name, size = 20, color = "currentColor" }) => {
     mosque:      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><line x1="12" y1="2" x2="12" y2="5"/><path d="M10 5 Q12 3 14 5"/><path d="M6 10 Q12 6 18 10"/><rect x="4" y="10" width="16" height="10"/><rect x="9" y="14" width="6" height="6"/><line x1="4" y1="10" x2="4" y2="7"/><line x1="4" y1="7" x2="6" y2="7"/><line x1="20" y1="10" x2="20" y2="7"/><line x1="20" y1="7" x2="18" y2="7"/></svg>,
     city:        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><rect x="3" y="10" width="4" height="11"/><rect x="10" y="6" width="4" height="15"/><rect x="17" y="3" width="4" height="18"/><line x1="1" y1="21" x2="23" y2="21"/></svg>,
     search:      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+    currency:    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9 14.5s.9 1.5 3 1.5 3-1 3-2.5-1.2-2-3-2.5-3-1-3-2.5S10.1 6 12 6s3 1.5 3 1.5"/><line x1="12" y1="4" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="20"/></svg>,
   };
   return icons[name] || null;
 };
@@ -651,7 +652,7 @@ const SECTIONS = [
   { id: "transport",    label: "التوصيل",         icon: "transport",  color: "#14b8a6", gradient: "linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)" },
   { id: "mosques",      label: "المساجد",         icon: "mosque",     color: "#059669", gradient: "linear-gradient(135deg, #059669 0%, #10b981 100%)" },
  { id: "cityservices", label: "خدمات المدينة", icon: "city", color: "#1e3a5f", gradient: "linear-gradient(160deg, #1e3a5f 0%, #1d4ed8 60%, #1e40af 100%)" },
-  { id: "currency", label: "حاسبة العملات", icon: "links", color: "#06b6d4", gradient: "linear-gradient(135deg, #06b6d4 0%, #14b8a6 100%)" },
+{ id: "currency", label: "حاسبة العملات", icon: "currency", color: "#06b6d4", gradient: "linear-gradient(135deg, #06b6d4 0%, #14b8a6 100%)" },
  { id: "realestate", label: "العقارات", icon: "home", color: "#0f766e", gradient: "linear-gradient(135deg, #0f766e 0%, #0d9488 100%)" },
 ];
 
@@ -4780,6 +4781,7 @@ const [elecStatus, setElecStatus] = useState(
   const [tempReason, setTempReason]         = useState("");
   const [alertBanner, setAlertBanner]       = useState("");
   const [editingBanner, setEditingBanner]   = useState(false);
+  const [tempBannerUrl, setTempBannerUrl] = useState("");
   const [tempBanner, setTempBanner]         = useState("");
   const [editorPerms, setEditorPerms]       = useState(DEFAULT_PERMS);
 const [adBannerData, setAdBannerData] = useState(null); 
@@ -4907,12 +4909,14 @@ if (adBanner && adBanner[0]) setAdBannerData(adBanner[0]);
     setTickerText(text);
   };
 
-  const saveBanner = async (text) => {
-    const ex = await supabase("settings", "GET", null, "?key=eq.alert_banner");
-    if (ex && ex.length > 0) await supabase("settings", "PATCH", { value: text }, "?key=eq.alert_banner");
-    else await supabase("settings", "POST", { key: "alert_banner", value: text });
-    setAlertBanner(text);
-  };
+
+  const saveBanner = async (text, url = "") => {
+  const value = url ? JSON.stringify({ text, url }) : text;
+  const ex = await supabase("settings", "GET", null, "?key=eq.alert_banner");
+  if (ex && ex.length > 0) await supabase("settings", "PATCH", { value }, "?key=eq.alert_banner");
+  else await supabase("settings", "POST", { key: "alert_banner", value });
+  setAlertBanner(value);
+};
 
   // Electricity toggle — if turning off → show reason modal first
   const toggleElectricity = () => {
@@ -5096,13 +5100,28 @@ style={{ width: "100%", maxWidth: "100%", margin: "0 auto", minHeight: "100vh", 
         </div>
       </div>
 
-      {/* Alert Banner */}
-      {alertBanner && alertBanner.trim() !== "" && (
-        <div style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "#fff", padding: "14px 16px", textAlign: "center", fontFamily: "'Cairo', sans-serif", fontWeight: "700", fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)", animation: "pulse 2s infinite" }}>
-          <span>🎯 {alertBanner}</span>
-          {isAdmin && <button onClick={() => saveBanner("")} style={{ background: "rgba(255,255,255,0.3)", border: "none", borderRadius: "8px", color: "#fff", padding: "4px 12px", cursor: "pointer", fontSize: "12px", fontFamily: "'Cairo', sans-serif", fontWeight: "600", transition: "all 0.3s" }}>✕ مسح</button>}
-        </div>
-      )}
+      
+      {alertBanner && alertBanner.trim() !== "" && (() => {
+  let bannerText = alertBanner;
+  let bannerUrl = "";
+  try {
+    const parsed = JSON.parse(alertBanner);
+    bannerText = parsed.text;
+    bannerUrl = parsed.url || "";
+  } catch {}
+  
+  const inner = (
+    <div style={{ background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "#fff", padding: "14px 16px", textAlign: "center", fontFamily: "'Cairo', sans-serif", fontWeight: "700", fontSize: "14px", display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)", animation: "pulse 2s infinite", cursor: bannerUrl ? "pointer" : "default", textDecoration: "none" }}>
+      <span>🎯 {bannerText}</span>
+      {bannerUrl && <span style={{ fontSize: "11px", background: "rgba(255,255,255,0.25)", borderRadius: "6px", padding: "2px 8px" }}>اضغط للانتقال ↗</span>}
+      {isAdmin && <button onClick={e => { e.preventDefault(); e.stopPropagation(); saveBanner(""); }} style={{ background: "rgba(255,255,255,0.3)", border: "none", borderRadius: "8px", color: "#fff", padding: "4px 12px", cursor: "pointer", fontSize: "12px", fontFamily: "'Cairo', sans-serif", fontWeight: "600" }}>✕ مسح</button>}
+    </div>
+  );
+
+  return bannerUrl 
+    ? <a href={bannerUrl} target="_blank" rel="noopener noreferrer" style={{ display: "block", textDecoration: "none" }}>{inner}</a>
+    : inner;
+})()}
       {isAdmin && (!alertBanner || alertBanner.trim() === "") && (
         <div onClick={() => { setTempBanner(""); setEditingBanner(true); }} style={{ background: "linear-gradient(135deg, #d1fae5 0%, #a7f3d0)", color: "#059669", textAlign: "center", padding: "12px", fontSize: "12px", cursor: "pointer", fontFamily: "'Cairo', sans-serif", fontWeight: "700", borderBottom: "2px solid #6ee7b7", transition: "all 0.3s" }}>
           ➕ إضافة إشعار خاص (صلاة، طارئ...)
@@ -5181,7 +5200,11 @@ style={{ width: "100%", maxWidth: "100%", margin: "0 auto", minHeight: "100vh", 
             <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
               <button onClick={async () => { await saveBanner(tempBanner); setEditingBanner(false); }}
                 style={{ flex: 1, padding: "12px", background: "#1a8a4a", color: "#fff", border: "none", borderRadius: "10px", fontFamily: "'Cairo', sans-serif", fontWeight: "700", cursor: "pointer" }}>حفظ</button>
-              <button onClick={() => setEditingBanner(false)}
+              <button onClick={() => setEditingBanner(false)}    
+
+              
+              
+              
                 style={{ flex: 1, padding: "12px", background: "#f0f0f0", border: "none", borderRadius: "10px", fontFamily: "'Cairo', sans-serif", cursor: "pointer" }}>إلغاء</button>
             </div>
           </div>
